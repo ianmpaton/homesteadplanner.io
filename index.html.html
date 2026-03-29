@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homestead Planner V0.7.2</title>
+    <style>
+        :root {
+            --home: #455a64; --structure: #795548; --path: #d7ccc8;
+            --garden: #66bb6a; --pasture: #d4e157; --forest: #1b5e20;
+            --orchard: #ffa726; --water: #29b6f6;
+        }
+
+        * { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; color: #1e293b; }
+        body { display: flex; flex-direction: column; background: #f1f5f9; }
+        
+        nav { background: #1b5e20; display: flex; flex-shrink: 0; padding: 0 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 1000; }
+        .nav-tab { padding: 15px 20px; color: white; cursor: pointer; font-weight: bold; border-bottom: 4px solid transparent; font-size: 11px; text-transform: uppercase; }
+        .nav-tab.active { border-bottom: 4px solid #fff59d; background: rgba(255,255,255,0.1); }
+
+        .page { display: none; flex: 1; height: calc(100vh - 50px); width: 100%; overflow: hidden; }
+        .page.active { display: flex; }
+
+        .sub-nav { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; }
+        .sub-tab { padding: 8px 15px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 20px; background: #e2e8f0; color: #475569; transition: 0.2s; }
+        .sub-tab.active { background: #1b5e20; color: white; }
+
+        #sidebar { width: 300px; min-width: 300px; background: white; border-right: 1px solid #cbd5e1; padding: 15px; display: flex; flex-direction: column; overflow-y: auto; z-index: 10; }
+        .card { background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
+        input, button, select { width: 100%; padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; }
+        button { cursor: pointer; font-weight: bold; border: none; transition: 0.2s; }
+        
+        .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+        .tool { padding: 8px 4px; border: 2px solid #f1f5f9; border-radius: 6px; cursor: pointer; text-align: center; font-size: 9px; font-weight: 800; background: #fff; text-transform: uppercase; }
+        .tool.active { border-color: #1b5e20; background: #f0fdf4; }
+
+        .brush-controls { display: flex; gap: 4px; margin-bottom: 10px; }
+        .brush-btn { flex: 1; padding: 8px; font-size: 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; }
+        .brush-btn.active { background: #1b5e20; color: white; border-color: #1b5e20; }
+
+        #viewport { flex: 1; overflow: auto; background: #94a3b8; display: flex; align-items: center; justify-content: center; position: relative; }
+        #grid-container { display: grid; gap: 1px; background: #475569; box-shadow: 0 0 50px rgba(0,0,0,0.3); transform-origin: center center; transition: transform 0.05s linear; margin: auto; }
+        .cell { width: 44px; height: 44px; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 8px; text-align: center; cursor: crosshair; user-select: none; }
+        .cell span.emoji { font-size: 18px; display: block; pointer-events: none; }
+
+        .content-wrapper { width: 100%; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
+        .table-container { width: 100%; max-width: 1200px; background: white; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 15px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        th { background: #1b5e20; color: white; text-transform: uppercase; font-size: 11px; position: sticky; top: 0; }
+
+        .calendar-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; width: 100%; max-width: 1200px; margin-top: 20px; }
+        .month-box { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; min-height: 120px; }
+        .month-name { font-weight: bold; font-size: 10px; color: #1b5e20; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; margin-bottom: 5px; }
+        .cal-event { font-size: 9px; padding: 2px 4px; margin-bottom: 2px; border-radius: 3px; background: #f0fdf4; border-left: 3px solid #1b5e20; }
+        .cal-harvest { background: #fff7ed; border-left-color: #f97316; font-weight: bold; }
+
+        .countdown { font-weight: bold; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+        .ready { background: #dcfce7; color: #166534; }
+        .waiting { background: #fef9c3; color: #854d0e; }
+
+        .garden { background: var(--garden) !important; color: white; }
+        .pasture { background: var(--pasture) !important; color: #1e293b; }
+        .orchard { background: var(--orchard) !important; color: white; }
+        .home { background: var(--home) !important; color: white; }
+        .structure { background: var(--structure) !important; color: white; }
+        .forest { background: var(--forest) !important; color: white; }
+        .path { background: var(--path) !important; color: #5d4037; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-tab active" data-page="map-page" onclick="app.switchPage(this)">🗺️ Field Map</div>
+    <div class="nav-tab" data-page="records-page" onclick="app.switchPage(this)">📋 Yield Records</div>
+    <div class="nav-tab" data-page="library-page" onclick="app.switchPage(this)">⚙️ Library</div>
+    <div class="nav-tab" data-page="calendar-page" onclick="app.switchPage(this)">📅 Planting Calendar</div>
+</nav>
+
+<div id="map-page" class="page active">
+    <div id="sidebar">
+        <div class="card">
+            <button onclick="io.exportData()" style="background: #0288d1; color: white; margin-bottom: 5px;">💾 SAVE DATA</button>
+            <button onclick="document.getElementById('fileInput').click()" style="background: #546e7a; color: white;">📂 LOAD DATA</button>
+            <input type="file" id="fileInput" style="display:none" onchange="io.importData(event)">
+        </div>
+
+        <div class="card">
+            <label style="font-size: 10px; font-weight: bold;">SITE DETAILS (CANADIAN ZONE):</label>
+            <input type="text" id="growing-zone" placeholder="e.g. 5b">
+            <label style="font-size: 9px;">LAST SPRING FROST:</label>
+            <input type="date" id="last-frost">
+            <label style="font-size: 9px;">FIRST FALL FROST:</label>
+            <input type="date" id="first-frost">
+        </div>
+        
+        <div class="card">
+            <label style="font-size: 10px; font-weight: bold;">LOT DIMENSIONS (FEET):</label>
+            <div style="display:flex; gap:5px;">
+                <input type="number" id="width-ft" value="12" placeholder="W">
+                <input type="number" id="length-ft" value="12" placeholder="L">
+            </div>
+            <button onclick="map.init()" style="background: #1b5e20; color: white;">REBUILD GRID</button>
+        </div>
+
+        <div class="card">
+            <label style="font-size: 10px; font-weight: bold;">BRUSH SIZE:</label>
+            <div class="brush-controls">
+                <button class="brush-btn active" onclick="map.setBrush(1, this)">1x1</button>
+                <button class="brush-btn" onclick="map.setBrush(3, this)">3x3</button>
+                <button class="brush-btn" onclick="map.setBrush(5, this)">5x5</button>
+            </div>
+            <label style="font-size: 9px;">ZOOM:</label>
+            <input type="range" id="zoom-slider" min="0.3" max="3" step="0.1" value="1" oninput="map.handleZoom(this.value)">
+        </div>
+        <div id="tools" class="tool-grid"></div>
+    </div>
+    <div id="viewport" onwheel="map.wheelZoom(event)">
+        <div id="grid-container"></div>
+    </div>
+</div>
+
+<div id="records-page" class="page">
+    <div class="content-wrapper">
+        <div style="width:100%; max-width:1200px; display:flex; justify-content:space-between; margin-bottom:15px; align-items: center;">
+            <h2 style="margin:0; color:#1b5e20;">Harvest Tracker</h2>
+            <div id="yield-summary" style="font-weight:bold; background:#fff; padding:10px 20px; border-radius:8px; border:1px solid #ddd;">Total: 0.00 lbs</div>
+        </div>
+        <div class="table-container" style="max-height:70vh; overflow-y:auto;">
+            <table><thead><tr><th>Identity</th><th>Planted</th><th>DTM</th><th>Harvest</th><th>Yield (lbs)</th><th>Status</th></tr></thead><tbody id="records-body"></tbody></table>
+        </div>
+    </div>
+</div>
+
+<div id="library-page" class="page">
+    <div class="content-wrapper">
+        <div class="sub-nav">
+            <div class="sub-tab active" onclick="libManager.switchTab('garden', this)">🥬 Garden</div>
+            <div class="sub-tab" onclick="libManager.switchTab('pasture', this)">🐄 Pasture</div>
+            <div class="sub-tab" onclick="libManager.switchTab('orchard', this)">🍎 Orchard</div>
+            <div class="sub-tab" onclick="libManager.switchTab('structure', this)">🏠 Structures</div>
+        </div>
+        <div style="width:100%; max-width:1200px; display:flex; gap: 20px;">
+            <div style="flex: 1; background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; height:fit-content; position:sticky; top:20px;">
+                <h3 style="margin-top:0;">Add to <span id="current-lib-tab">Garden</span></h3>
+                <label>Keyword</label><input type="text" id="lib-name">
+                <label>Emoji</label><input type="text" id="lib-emoji" placeholder="🌿">
+                <label>DTM (Days to Maturity)</label><input type="number" id="lib-dtm" value="60">
+                
+                <div id="orchard-only-fields" style="display:none;">
+                    <label>Harvest Month</label>
+                    <select id="lib-hmonth">
+                        <option value="none">N/A</option><option value="6">July</option><option value="7">August</option>
+                        <option value="8">September</option><option value="9">October</option>
+                    </select>
+                </div>
+
+                <label>Frost Sensitive?</label>
+                <select id="lib-sensitive"><option value="true">Yes</option><option value="false">No</option></select>
+                <label>Indoor Weeks</label><input type="number" id="lib-indoor" value="0">
+                <button onclick="libManager.addCustom()" style="background:#1b5e20; color:white; margin-top:10px;">➕ ADD PRESET</button>
+            </div>
+            <div style="flex: 2;">
+                <input type="text" id="lib-search" placeholder="🔍 Search current tab..." oninput="libManager.render()" style="margin-bottom:10px;">
+                <div class="table-container" style="max-height:80vh; overflow-y:auto;">
+                    <table><thead><tr><th>Emoji</th><th>Keyword</th><th>DTM</th><th>Action</th></tr></thead><tbody id="library-body"></tbody></table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="calendar-page" class="page">
+    <div class="content-wrapper">
+        <h2 style="color:#1b5e20;">Planting & Harvest Schedule</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>Crop</th><th>Indoor Seed Start</th><th>Transplant / Direct Sow</th><th>Expected Harvest</th><th>Frost Sensitive?</th></tr>
+                </thead>
+                <tbody id="calendar-body"></tbody>
+            </table>
+        </div>
+        <h3 style="color:#1b5e20; width:100%; max-width:1200px; text-align:left;">Monthly Overview</h3>
+        <div id="month-view" class="calendar-grid"></div>
+    </div>
+</div>
+
+<script>
+const DEFAULTS = {
+    'garden': {
+        'lettuce': { dtm: 45, emoji: '🥬', sensitive: false, indoorWeeks: 4 },
+        'radish': { dtm: 25, emoji: '🧧', sensitive: false, indoorWeeks: 0 },
+        'bean': { dtm: 55, emoji: '🫘', sensitive: true, indoorWeeks: 0 },
+        'pea': { dtm: 65, emoji: '🫛', sensitive: false, indoorWeeks: 0 },
+        'tomato': { dtm: 75, emoji: '🍅', sensitive: true, indoorWeeks: 8 },
+        'carrot': { dtm: 70, emoji: '🥕', sensitive: false, indoorWeeks: 0 }
+    },
+    'pasture': {
+        'cornish cross': { dtm: 56, emoji: '🍗', sensitive: false, indoorWeeks: 0 },
+        'turkey': { dtm: 154, emoji: '🦃', sensitive: false, indoorWeeks: 0 },
+        'meat pig': { dtm: 180, emoji: '🐖', sensitive: false, indoorWeeks: 0 },
+        'sheep': { dtm: 200, emoji: '🐑', sensitive: false, indoorWeeks: 0 },
+        'cow': { dtm: 540, emoji: '🐄', sensitive: false, indoorWeeks: 0 }
+    },
+    'orchard': {
+        'apple tree': { dtm: 150, emoji: '🍎', sensitive: false, indoorWeeks: 0, harvestMonth: 8 },
+        'pear tree': { dtm: 160, emoji: '🍐', sensitive: false, indoorWeeks: 0, harvestMonth: 8 },
+        'plum tree': { dtm: 110, emoji: '🫐', sensitive: false, indoorWeeks: 0, harvestMonth: 7 },
+        'cherry tree': { dtm: 90, emoji: '🍒', sensitive: false, indoorWeeks: 0, harvestMonth: 6 },
+        'peach tree': { dtm: 120, emoji: '🍑', sensitive: true, indoorWeeks: 0, harvestMonth: 7 }
+    },
+    'structure': { 'fence': { dtm: 0, emoji: '🚧' }, 'shed': { dtm: 0, emoji: '🏠' } }
+};
+
+let state = { 
+    library: JSON.parse(JSON.stringify(DEFAULTS)), 
+    inventory: {}, tool: 'garden', 
+    isDown: false, zoom: 1, 
+    currentLibTab: 'garden',
+    brushSize: 1,
+    cols: 0,
+    rows: 0
+};
+
+const app = {
+    switchPage(el) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(el.dataset.page).classList.add('active');
+        el.classList.add('active');
+        if(el.dataset.page === 'records-page') this.renderRecords();
+        if(el.dataset.page === 'library-page') libManager.render();
+        if(el.dataset.page === 'calendar-page') this.renderCalendar();
+    },
+    updateInv(name, key, val) { if(state.inventory[name]) { state.inventory[name][key] = val; this.renderRecords(); } },
+    renderRecords() {
+        const body = document.getElementById('records-body'); body.innerHTML = "";
+        let total = 0; const now = new Date();
+        Object.values(state.inventory).forEach(item => {
+            const hDate = new Date(item.start); hDate.setDate(hDate.getDate() + (parseInt(item.dtm) || 0));
+            const diffDays = Math.ceil((hDate - now) / (1000 * 60 * 60 * 24));
+            const w = Math.max(0, parseFloat(item.weight) || 0); total += w;
+            body.innerHTML += `<tr><td><strong>${item.name}</strong></td>
+                <td><input type="date" value="${item.start}" onchange="app.updateInv('${item.name}', 'start', this.value)"></td>
+                <td><input type="number" value="${item.dtm}" onchange="app.updateInv('${item.name}', 'dtm', this.value)" style="width:60px"></td>
+                <td>${hDate.toLocaleDateString()}</td>
+                <td><input type="number" value="${w}" onchange="app.updateInv('${item.name}', 'weight', this.value)" style="width:70px"></td>
+                <td><span class="countdown ${diffDays <= 0 ? 'ready' : 'waiting'}">${diffDays <= 0 ? 'READY' : diffDays + 'd'}</span></td></tr>`;
+        });
+        document.getElementById('yield-summary').innerText = `Total: ${total.toFixed(2)} lbs`;
+    },
+    renderCalendar() {
+        const body = document.getElementById('calendar-body');
+        const mBody = document.getElementById('month-view');
+        body.innerHTML = ""; mBody.innerHTML = "";
+        const lFrostStr = document.getElementById('last-frost').value;
+        if (!lFrostStr) { body.innerHTML = "<tr><td colspan='5'>Set Last Spring Frost first.</td></tr>"; return; }
+
+        const lFrost = new Date(lFrostStr);
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        months.forEach(m => mBody.innerHTML += `<div class="month-box" id="month-${m}"><div class="month-name">${m}</div></div>`);
+
+        Object.values(state.inventory).forEach(item => {
+            let libData = null;
+            for(let cat in state.library) {
+                for(let key in state.library[cat]) {
+                    if(item.name.toLowerCase().includes(key)) { libData = state.library[cat][key]; break; }
+                }
+            }
+            if(!libData) libData = { sensitive: true, indoorWeeks: 0, dtm: item.dtm || 60 };
+
+            // Calculate Planting Dates
+            const sowDate = new Date(lFrost);
+            if (!libData.sensitive) sowDate.setDate(sowDate.getDate() - 14);
+            const indoorDate = new Date(sowDate);
+            indoorDate.setDate(indoorDate.getDate() - ((libData.indoorWeeks || 0) * 7));
+
+            // Shift: Calculate Harvest Date based on sow date + DTM
+            const harvestDate = new Date(sowDate);
+            harvestDate.setDate(harvestDate.getDate() + parseInt(libData.dtm));
+
+            body.innerHTML += `<tr>
+                <td><strong>${item.name}</strong></td>
+                <td>${libData.indoorWeeks > 0 ? indoorDate.toLocaleDateString() : 'Direct'}</td>
+                <td>${sowDate.toLocaleDateString()}</td>
+                <td>${harvestDate.toLocaleDateString()}</td>
+                <td>${libData.sensitive ? '⚠️' : '✅'}</td>
+            </tr>`;
+            
+            if(libData.indoorWeeks > 0) document.getElementById(`month-${months[indoorDate.getMonth()]}`).innerHTML += `<div class="cal-event">🌱 Start ${item.name}</div>`;
+            document.getElementById(`month-${months[sowDate.getMonth()]}`).innerHTML += `<div class="cal-event">🚜 Plant ${item.name}</div>`;
+            
+            // Expected Harvest added to monthly grid
+            document.getElementById(`month-${months[harvestDate.getMonth()]}`).innerHTML += `<div class="cal-event cal-harvest">🧺 Harvest ${item.name}</div>`;
+            
+            // Orchard logic override
+            if(libData.harvestMonth !== undefined) {
+                const hMonth = months[libData.harvestMonth];
+                document.getElementById(`month-${hMonth}`).innerHTML += `<div class="cal-event cal-harvest">🌳 Fruit: ${item.name}</div>`;
+            }
+        });
+    }
+};
+
+const libManager = {
+    switchTab(cat, el) {
+        state.currentLibTab = cat;
+        document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('current-lib-tab').innerText = cat;
+        document.getElementById('orchard-only-fields').style.display = cat === 'orchard' ? 'block' : 'none';
+        this.render();
+    },
+    addCustom() {
+        const name = document.getElementById('lib-name').value.trim().toLowerCase();
+        if(!name) return;
+        const hMonth = document.getElementById('lib-hmonth').value;
+        state.library[state.currentLibTab][name] = { 
+            dtm: document.getElementById('lib-dtm').value, 
+            emoji: document.getElementById('lib-emoji').value || '🌿',
+            sensitive: document.getElementById('lib-sensitive').value === 'true',
+            indoorWeeks: parseInt(document.getElementById('lib-indoor').value) || 0,
+            harvestMonth: hMonth === 'none' ? undefined : parseInt(hMonth)
+        };
+        this.render();
+    },
+    render() {
+        const body = document.getElementById('library-body'); body.innerHTML = "";
+        const query = document.getElementById('lib-search').value.toLowerCase();
+        const currentData = state.library[state.currentLibTab];
+        Object.keys(currentData).sort().forEach(key => {
+            if(!key.includes(query)) return;
+            const item = currentData[key];
+            body.innerHTML += `<tr><td>${item.emoji}</td><td><strong>${key}</strong></td><td>${item.dtm}d</td><td><button onclick="libManager.deleteItem('${key}')" style="background:#ef4444; color:white; padding:5px 10px;">✕</button></td></tr>`;
+        });
+    },
+    deleteItem(key) { delete state.library[state.currentLibTab][key]; this.render(); }
+};
+
+const map = {
+    cats: ['home', 'structure', 'path', 'garden', 'pasture', 'forest', 'orchard', 'water', 'eraser'],
+    init() {
+        const grid = document.getElementById('grid-container');
+        state.cols = parseInt(document.getElementById('width-ft').value) || 12;
+        state.rows = parseInt(document.getElementById('length-ft').value) || 12;
+        
+        grid.innerHTML = ''; 
+        grid.style.gridTemplateColumns = `repeat(${state.cols}, 44px)`;
+        grid.style.gridTemplateRows = `repeat(${state.rows}, 44px)`;
+
+        for(let i=0; i < (state.cols * state.rows); i++) {
+            const cell = document.createElement('div'); cell.className = 'cell';
+            cell.onmousedown = (e) => { if(e.button === 0) this.applyBrush(i, 'paint'); };
+            cell.onmouseenter = () => { if(state.isDown) this.applyBrush(i, 'paint'); };
+            cell.oncontextmenu = (e) => { e.preventDefault(); this.applyBrush(i, 'label'); };
+            grid.appendChild(cell);
+        }
+    },
+    setBrush(size, el) {
+        state.brushSize = size;
+        document.querySelectorAll('.brush-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+    },
+    applyBrush(centerIdx, action) {
+        const radius = Math.floor(state.brushSize / 2);
+        const row = Math.floor(centerIdx / state.cols);
+        const col = centerIdx % state.cols;
+        const cells = document.querySelectorAll('.cell');
+        
+        let labelInput = null;
+        if(action === 'label') {
+            labelInput = prompt("Label for this area:");
+            if(!labelInput) return;
+        }
+
+        for (let r = row - radius; r <= row + radius; r++) {
+            for (let c = col - radius; c <= col + radius; c++) {
+                if (r >= 0 && r < state.rows && c >= 0 && c < state.cols) {
+                    const cell = cells[r * state.cols + c];
+                    if(action === 'paint') this.paint(cell);
+                    if(action === 'label') this.label(cell, labelInput);
+                }
+            }
+        }
+    },
+    handleZoom(val) { state.zoom = parseFloat(val); document.getElementById('grid-container').style.transform = `scale(${state.zoom})`; },
+    wheelZoom(e) { e.preventDefault(); const d = e.deltaY > 0 ? -0.1 : 0.1; const nz = Math.min(3, Math.max(0.3, state.zoom + d)); this.handleZoom(nz); document.getElementById('zoom-slider').value = nz; },
+    resetView() { this.handleZoom(1); document.getElementById('zoom-slider').value = 1; },
+    paint(cell) {
+        this.cats.forEach(c => cell.classList.remove(c));
+        if(state.tool === 'eraser') { cell.innerHTML = ''; cell.dataset.cat = ''; cell.dataset.label = ''; }
+        else { cell.classList.add(state.tool); cell.dataset.cat = state.tool; }
+    },
+    label(cell, val) {
+        cell.dataset.label = val; let match = null;
+        for(let cat in state.library) {
+            for(let key in state.library[cat]) {
+                if(val.toLowerCase().includes(key)) { match = { ...state.library[cat][key], cat }; break; }
+            }
+        }
+        if(match) {
+            cell.innerHTML = `<span class="emoji">${match.emoji}</span>${val}`;
+            this.cats.forEach(c => cell.classList.remove(c)); cell.classList.add(match.cat);
+            if(!state.inventory[val]) state.inventory[val] = { name: val, cat: match.cat, dtm: match.dtm, start: new Date().toISOString().split('T')[0], weight: 0 };
+        } else {
+            cell.innerHTML = `<span></span>${val}`;
+            if(!state.inventory[val]) state.inventory[val] = { name: val, cat: 'custom', dtm: 60, start: new Date().toISOString().split('T')[0], weight: 0 };
+        }
+    }
+};
+
+const io = {
+    exportData() {
+        const data = { 
+            w: state.cols, l: state.rows,
+            growingZone: document.getElementById('growing-zone').value, 
+            lastFrost: document.getElementById('last-frost').value, 
+            inventory: state.inventory, library: state.library, 
+            grid: Array.from(document.querySelectorAll('.cell')).map(c => ({ cat: c.dataset.cat, label: c.dataset.label, inner: c.innerHTML })) 
+        };
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type: 'application/json'})); a.download = `homestead_v0.7.2.json`; a.click();
+    },
+    importData(event) {
+        const reader = new FileReader(); reader.onload = (e) => {
+            const data = JSON.parse(e.target.result); 
+            state.inventory = data.inventory || {}; state.library = data.library || DEFAULTS;
+            document.getElementById('width-ft').value = data.w || 12;
+            document.getElementById('length-ft').value = data.l || 12;
+            document.getElementById('last-frost').value = data.lastFrost || '';
+            document.getElementById('growing-zone').value = data.growingZone || '';
+            map.init();
+            const cells = document.querySelectorAll('.cell');
+            data.grid.forEach((s, i) => { if(cells[i]) { if(s.cat) cells[i].classList.add(s.cat); cells[i].dataset.cat = s.cat; cells[i].dataset.label = s.label; cells[i].innerHTML = s.inner; } });
+        }; reader.readAsText(event.target.files[0]);
+    }
+};
+
+window.onload = () => {
+    const tools = document.getElementById('tools');
+    map.cats.forEach(cat => {
+        const b = document.createElement('div'); b.className = `tool ${cat}`; 
+        b.innerText = cat === 'eraser' ? '🧼 eraser' : cat;
+        b.onclick = () => { document.querySelectorAll('.tool').forEach(t => t.classList.remove('active')); b.classList.add('active'); state.tool = cat; };
+        if(cat === 'garden') b.classList.add('active'); tools.appendChild(b);
+    });
+    document.addEventListener('mousedown', () => state.isDown = true); document.addEventListener('mouseup', () => state.isDown = false);
+    map.init();
+};
+</script>
+</body>
+</html>
